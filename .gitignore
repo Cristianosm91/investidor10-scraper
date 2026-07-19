@@ -1,0 +1,38 @@
+# Dados locais e arquivos gerados
+/data/
+*.json
+*.csv
+*.log
+*.tmp
+*.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter / notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Arquivos temporários e do sistema
+.DS_Store
+Thumbs.db
+
+# Ignorar todos os Markdown, exceto o README principal
+*.md
+!README.md
+
+# Scripts de teste / exploratórios não essenciais
+explorar_investidor10.py
+gerar_dashboard_investidor10.py
