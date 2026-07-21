@@ -9,6 +9,8 @@ let categoriaAtual = Object.keys(DADOS).find((categoria) => (DADOS[categoria] ||
 let ordenacao = { campo: null, direcao: 1 };
 let filtrosAtivos = {}; // { campo: { min: number|null, max: number|null } }
 let painelAberto = false;
+let tamanhoPagina = 50; // 50 | 100 | 150 | 200 | 250 | "todos"
+let paginaAtual = 1;
 
 function pareceNumerico(valor) {
   if (valor == null) return false;
@@ -64,7 +66,7 @@ function colunasDaCategoria(categoria) {
     for (const chave of Object.keys(item)) {
       if (vistas.has(chave)) continue;
       vistas.add(chave);
-      colunas.push({ chave, label: chave });
+      colunas.push({ chave, label: chave, percentual: false });
     }
   }
   return colunas;
@@ -82,24 +84,55 @@ function formatarValorFiltro(valor) {
   return String(Math.round(valor * 100) / 100);
 }
 
-function formatarCelula(campo, valor) {
+function formatarNumeroBR(n, casas) {
+  return n.toFixed(casas).replace(".", ",");
+}
+
+function formatarCelula(col, valor) {
   if (valor == null || valor === "") return "\u2013";
-  if (ehCampoVariacao(campo)) {
-    const n = parseFloat(valor);
+  const bruto = String(valor);
+
+  // campos de variação (alta/baixa de preço) -- únicos que recebem cor
+  if (ehCampoVariacao(col.chave)) {
+    const n = paraNumero(bruto);
     if (!isNaN(n)) {
       const classe = n > 0 ? "pos" : n < 0 ? "neg" : "";
       const sinal = n > 0 ? "+" : "";
-      return `<span class="${classe}">${sinal}${n.toFixed(2)}%</span>`;
+      return `<span class="${classe}">${sinal}${formatarNumeroBR(n, 2)}%</span>`;
     }
   }
-  return String(valor);
+
+  // campos numéricos marcados como percentuais no schema (ex: DY, ROE, margens) --
+  // vêm como número cru da fonte (ex: 12.4) e precisam do sufixo "%", sem cor
+  if (col.percentual) {
+    const n = paraNumero(bruto);
+    if (!isNaN(n)) {
+      return `${formatarNumeroBR(n, 2)}%`;
+    }
+  }
+
+  // campos que já vêm formatados como string com "%" (ex: Investidor10) -- corrige
+  // eventuais "%%" duplicados vindos da coleta, sem mexer no restante do valor
+  if (bruto.includes("%")) {
+    return bruto.replace(/%{2,}/g, "%");
+  }
+
+  return bruto;
+}
+
+function formatarDataHora(iso) {
+  if (!iso) return "desconhecido";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const dataFmt = d.toLocaleDateString("pt-BR");
+  const horaFmt = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return `${dataFmt} às ${horaFmt}`;
 }
 
 function atualizarMeta() {
   const metaEl = document.querySelector("header.topbar .meta");
   if (!metaEl) return;
-  const coletadoEm = METADATA.coletado_em || "desconhecido";
-  metaEl.textContent = `fonte: dados locais \u00b7 coletado em ${coletadoEm}`;
+  metaEl.textContent = `fonte: dados locais \u00b7 atualizado em ${formatarDataHora(METADATA.coletado_em)}`;
 }
 
 function renderizarTabs() {
@@ -115,6 +148,7 @@ function renderizarTabs() {
       categoriaAtual = categoria;
       ordenacao = { campo: null, direcao: 1 };
       filtrosAtivos = {};
+      paginaAtual = 1;
       document.getElementById("busca").value = "";
       renderizarTudo();
     };
@@ -140,7 +174,7 @@ function renderizarMarquee() {
     const n = paraNumero(item[campoVariacao]);
     const classe = n >= 0 ? "up" : "down";
     const sinal = n >= 0 ? "+" : "";
-    return `<span class="marquee-item"><span class="tk">${item.ticker}</span><span class="${classe}">${sinal}${n.toFixed(1)}%</span></span>`;
+    return `<span class="marquee-item"><span class="tk">${item.ticker}</span><span class="${classe}">${sinal}${formatarNumeroBR(n, 1)}%</span></span>`;
   }).join("");
 }
 
@@ -154,7 +188,9 @@ function renderizarCabecalho(colunas) {
     const seta = ordenacao.campo === col.chave ? (ordenacao.direcao === 1 ? "\u25b2" : "\u25bc") : "";
     th.innerHTML = `${col.label}<span class="arrow">${seta}</span>`;
     if (ordenacao.campo === col.chave) th.classList.add("sorted");
-    if (col.chave === "ticker" || col.chave === "nome" || col.chave === "companyname") th.classList.add("col-fixa");
+    // só a primeira coluna (ticker) fica fixa ao rolar horizontalmente --
+    // duas colunas fixas na mesma posição causavam sobreposição de texto
+    if (col.chave === "ticker") th.classList.add("col-fixa");
 
     th.onclick = () => {
       if (ordenacao.campo === col.chave) {
@@ -223,6 +259,7 @@ function renderizarPainelFiltros() {
         filtrosAtivos[col.chave] = { min, max };
       }
       renderizarBadgeFiltros();
+      paginaAtual = 1;
       const colunas = colunasDaCategoria(categoriaAtual);
       renderizarLinhas(colunas);
     };
@@ -255,7 +292,7 @@ function aplicarFiltrosNumericos(itens) {
   });
 }
 
-function renderizarLinhas(colunas) {
+function calcularItensFiltrados() {
   const termo = document.getElementById("busca").value.trim().toLowerCase();
   let itens = [...(DADOS[categoriaAtual] || [])];
 
@@ -283,33 +320,99 @@ function renderizarLinhas(colunas) {
     });
   }
 
+  return itens;
+}
+
+function renderizarPaginacao(totalFiltrado, totalPaginas) {
+  const nav = document.getElementById("paginacao");
+  if (!nav) return;
+
+  if (tamanhoPagina === "todos" || totalPaginas <= 1) {
+    nav.innerHTML = "";
+    return;
+  }
+
+  nav.innerHTML = "";
+
+  const btnAnterior = document.createElement("button");
+  btnAnterior.textContent = "Anterior";
+  btnAnterior.disabled = paginaAtual <= 1;
+  btnAnterior.onclick = () => {
+    paginaAtual = Math.max(1, paginaAtual - 1);
+    const colunas = colunasDaCategoria(categoriaAtual);
+    renderizarLinhas(colunas);
+  };
+
+  const info = document.createElement("span");
+  info.className = "pagina-info";
+  info.textContent = `Página ${paginaAtual} de ${totalPaginas}`;
+
+  const btnProxima = document.createElement("button");
+  btnProxima.textContent = "Próxima";
+  btnProxima.disabled = paginaAtual >= totalPaginas;
+  btnProxima.onclick = () => {
+    paginaAtual = Math.min(totalPaginas, paginaAtual + 1);
+    const colunas = colunasDaCategoria(categoriaAtual);
+    renderizarLinhas(colunas);
+  };
+
+  nav.appendChild(btnAnterior);
+  nav.appendChild(info);
+  nav.appendChild(btnProxima);
+}
+
+function renderizarLinhas(colunas) {
+  const itens = calcularItensFiltrados();
+  const totalFiltrado = itens.length;
+
+  const tamanhoEfetivo = tamanhoPagina === "todos" ? totalFiltrado || 1 : tamanhoPagina;
+  const totalPaginas = Math.max(1, Math.ceil(totalFiltrado / tamanhoEfetivo));
+  if (paginaAtual > totalPaginas) paginaAtual = totalPaginas;
+  if (paginaAtual < 1) paginaAtual = 1;
+
+  const inicio = totalFiltrado === 0 ? 0 : (paginaAtual - 1) * tamanhoEfetivo;
+  const fim = Math.min(totalFiltrado, inicio + tamanhoEfetivo);
+  const itensPagina = tamanhoPagina === "todos" ? itens : itens.slice(inicio, fim);
+
   const corpo = document.getElementById("corpo");
   const vazio = document.getElementById("vazio");
   if (!corpo || !vazio) return;
   corpo.innerHTML = "";
 
-  if (itens.length === 0) {
+  if (itensPagina.length === 0) {
     vazio.style.display = "block";
   } else {
     vazio.style.display = "none";
     const frag = document.createDocumentFragment();
-    for (const item of itens) {
+    for (const item of itensPagina) {
       const tr = document.createElement("tr");
       tr.innerHTML = colunas.map((col) => {
         const numerica = pareceNumerico(item[col.chave]) && !ehCampoVariacao(col.chave) && col.chave !== "ticker";
         const classes = [
-          col.chave === "ticker" ? "ticker" : "",
+          col.chave === "ticker" ? "ticker col-fixa" : "",
           (col.chave === "nome" || col.chave === "companyname") ? "nome" : "",
           numerica ? "num" : "",
         ].filter(Boolean).join(" ");
-        return `<td class="${classes}">${formatarCelula(col.chave, item[col.chave])}</td>`;
+        return `<td class="${classes}">${formatarCelula(col, item[col.chave])}</td>`;
       }).join("");
       frag.appendChild(tr);
     }
     corpo.appendChild(frag);
   }
 
-  document.getElementById("contagem").textContent = `${itens.length} de ${(DADOS[categoriaAtual] || []).length} ativos`;
+  const totalCategoria = (DADOS[categoriaAtual] || []).length;
+  const contagemEl = document.getElementById("contagem");
+  if (contagemEl) {
+    if (totalFiltrado === 0) {
+      contagemEl.textContent = `0 de ${totalCategoria} ativos`;
+    } else if (tamanhoPagina === "todos") {
+      contagemEl.textContent = `${totalFiltrado} de ${totalCategoria} ativos`;
+    } else {
+      contagemEl.textContent = `${inicio + 1}\u2013${fim} de ${totalFiltrado} ativos`;
+    }
+  }
+
+  renderizarPaginacao(totalFiltrado, totalPaginas);
 }
 
 function renderizarTudo() {
@@ -326,6 +429,17 @@ function renderizarTudo() {
 const campoBusca = document.getElementById("busca");
 if (campoBusca) {
   campoBusca.addEventListener("input", () => {
+    paginaAtual = 1;
+    const colunas = colunasDaCategoria(categoriaAtual);
+    renderizarLinhas(colunas);
+  });
+}
+
+const seletorTamanho = document.getElementById("tamanho-pagina");
+if (seletorTamanho) {
+  seletorTamanho.addEventListener("change", () => {
+    tamanhoPagina = seletorTamanho.value === "todos" ? "todos" : parseInt(seletorTamanho.value, 10);
+    paginaAtual = 1;
     const colunas = colunasDaCategoria(categoriaAtual);
     renderizarLinhas(colunas);
   });
@@ -343,6 +457,7 @@ const btnLimparFiltros = document.getElementById("btn-limpar-filtros");
 if (btnLimparFiltros) {
   btnLimparFiltros.addEventListener("click", () => {
     filtrosAtivos = {};
+    paginaAtual = 1;
     renderizarBadgeFiltros();
     renderizarPainelFiltros();
     const colunas = colunasDaCategoria(categoriaAtual);

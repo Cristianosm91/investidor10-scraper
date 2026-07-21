@@ -32,7 +32,58 @@ DELAY_ENTRE_REQUESTS = 2  # segundos, por educação com o servidor
 
 # Divide por vírgula apenas quando ela for seguida de um novo rótulo de campo
 # (ex: ", P/VP :"), e não quando faz parte do valor decimal (ex: "10,96 B").
-PADRAO_DIVISAO_CAMPOS = re.compile(r",\s*(?=[A-ZÀ-Ý][\wÀ-ÿ/. ]*?:)")
+# Inclui hífen na classe de caracteres do rótulo -- rótulos como "Preço-teto
+# de Bazin" têm hífen, e sem isso a divisão falhava e o campo inteiro ficava
+# grudado no campo anterior (bug real encontrado em produção).
+PADRAO_DIVISAO_CAMPOS = re.compile(r",\s*(?=[A-ZÀ-Ý][\wÀ-ÿ/.\- ]*?:)")
+
+# Campos que representam valores em R$ -- a sanitização extrai só o token
+# "R$ X,XX" válido, descartando qualquer texto residual de uma divisão que
+# tenha falhado (defesa extra, além do regex acima já corrigido).
+CAMPOS_MOEDA = {"Preço Atual", "Preço-teto de Bazin", "Preço Justo de Graham"}
+
+# Campos que são múltiplos/razões (ex: 28.4x), nunca percentuais -- se algum
+# "%" vazar pra cá por causa de um campo vizinho mal dividido, a sanitização
+# descarta tudo depois do número válido.
+CAMPOS_RAZAO = {
+    "P/L", "P/VP", "EV/EBIT", "P/Ativo", "P/SR", "P/Capital de Giro",
+    "P/Ativo Circulante", "Liquidez Corrente", "PEG Ratio", "Giro de Ativos",
+}
+
+# Campos percentuais que já vêm como texto com "%" na fonte -- a sanitização
+# mantém só o primeiro "número%" válido, descartando texto de outro campo
+# que tenha vazado pra cá (ex: "12,34% Cresc. Lucro 5 anos : 8,10%" -> "12,34%").
+CAMPOS_PERCENTUAL_TEXTO = {
+    "ROE", "Margem Líquida", "Margem Bruta", "Margem EBIT",
+    "Cresc. Receita 5 anos", "Cresc. Lucro 5 anos",
+    "Dividend Yield", "DY Médio 5 anos",
+}
+
+# Campos percentuais que vêm como número cru sem "%" (ex: "48.501110424782")
+# -- a formatação com "%" acontece na exibição (schema), aqui só limpamos
+# qualquer texto residual, mantendo só o número.
+CAMPOS_PERCENTUAL_NUMERO_CRU = {"Upside Bazin", "Upside Graham"}
+
+
+def _sanitizar_valor(chave: str, valor: str) -> str:
+    """Aplica limpeza defensiva conforme o tipo conhecido do campo."""
+    if chave in CAMPOS_MOEDA:
+        m = re.match(r"R\$\s*-?\d[\d.,]*", valor)
+        return m.group(0) if m else valor
+
+    if chave in CAMPOS_RAZAO:
+        m = re.match(r"-?\d[\d.,]*", valor)
+        return m.group(0) if m else valor
+
+    if chave in CAMPOS_PERCENTUAL_TEXTO:
+        m = re.match(r"-?\d[\d.,]*\s*%", valor)
+        return m.group(0) if m else valor
+
+    if chave in CAMPOS_PERCENTUAL_NUMERO_CRU:
+        m = re.match(r"-?\d+\.?\d*", valor)
+        return m.group(0) if m else valor
+
+    return valor
 
 
 def buscar_pagina(url: str, page: int | None = 1) -> str:
@@ -76,6 +127,10 @@ def extrair_ativos(html: str) -> list[dict]:
             continue
 
         texto = a.get_text(" ", strip=True)
+        # colapsa qualquer sequência de espaços/quebras de linha em um único
+        # espaço -- o HTML de origem tem indentação/whitespace interno que
+        # o get_text preserva, gerando valores com \n soltos no meio
+        texto = re.sub(r"\s+", " ", texto)
         if "—" not in texto:
             continue
 
@@ -87,7 +142,14 @@ def extrair_ativos(html: str) -> list[dict]:
         for parte in partes[1:]:
             if ":" in parte:
                 chave, valor = parte.split(":", 1)
-                campos[chave.strip()] = valor.strip()
+                chave = chave.strip()
+                valor = valor.strip()
+                # o HTML de alguns campos (ex: Dividend Yield) renderiza o "%" num
+                # elemento separado, o que gera duplicação tipo "13,37%%" ao juntar
+                # o texto -- colapsa qualquer sequência de "%" (com ou sem espaço) em um só
+                valor = re.sub(r"\s*%\s*%+", "%", valor)
+                valor = _sanitizar_valor(chave, valor)
+                campos[chave] = valor
 
         vistos.add(ticker)
         resultados.append(

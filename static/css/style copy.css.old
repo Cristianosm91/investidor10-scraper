@@ -5,12 +5,12 @@
    destaque em --primary). */
 
 :root {
-  --bg: #0c0f18;
-  --bg-elevated: #0e1015;
-  --bg-card: #1b2129;
-  --bg-row-alt: #151b22;
-  --hairline: #2a3443;
-  --hairline-bright: #374356;
+  --bg: #0f172a;
+  --bg-elevated: #111827;
+  --bg-card: #1e293b;
+  --bg-row-alt: #182334;
+  --hairline: #2d3c55;
+  --hairline-bright: #3a4b68;
 
   --text: #f8fafc;
   --text-dim: #cbd5e1;
@@ -87,7 +87,7 @@ header.topbar .meta {
 }
 
 .btn-filtros:hover { background: var(--primary-dim); color: #fff; }
-.btn-filtros .ico { display: inline-flex; align-items: center; opacity: 0.85; }
+.btn-filtros .ico { font-size: 13px; opacity: 0.85; }
 
 .btn-filtros .badge {
   background: var(--primary);
@@ -371,7 +371,7 @@ table { border-collapse: collapse; width: 100%; min-width: 720px; }
 thead th {
   position: sticky;
   top: 0;
-  background: #131821;
+  background: #162033;
   text-align: left;
   font-size: 10.5px;
   font-weight: 600;
@@ -389,7 +389,7 @@ thead th {
 thead th:first-child { border-top-left-radius: var(--radius); }
 thead th:hover { color: var(--primary); }
 thead th.sorted { color: var(--primary); }
-thead th.col-fixa { position: sticky; left: 0; background: #131821; z-index: 2; min-width: 92px; }
+thead th.col-fixa { position: sticky; left: 0; background: #162033; z-index: 2; min-width: 92px; }
 thead th .arrow { font-size: 9px; margin-left: 4px; opacity: 0.7; }
 
 tbody td {
@@ -413,7 +413,7 @@ tbody tr:nth-child(even) { background: var(--bg-row-alt); }
 tbody tr:nth-child(even) td.col-fixa { background: var(--bg-row-alt); }
 tbody tr:nth-child(odd) td.col-fixa { background: var(--bg-card); }
 tbody tr:hover { background: var(--primary-soft); }
-tbody tr:hover td.col-fixa { background: #182230; }
+tbody tr:hover td.col-fixa { background: #1b2a42; }
 
 .pos { color: var(--positive); }
 .neg { color: var(--red); }
