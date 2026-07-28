@@ -35,4 +35,8 @@ Thumbs.db
 
 # Scripts de teste / exploratórios não essenciais
 explorar_investidor10.py
-gerar_dashboard_investidor10.py
+!src/gerar_dashboard_investidor10.py
+
+# Mantém o template do dashboard no versionamento
+!templates/
+!templates/dashboard.html
