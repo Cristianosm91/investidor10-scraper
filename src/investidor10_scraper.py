@@ -30,6 +30,15 @@ CATEGORIAS = {
 TIMEOUT = 15
 DELAY_ENTRE_REQUESTS = 2  # segundos, por educação com o servidor
 
+# Política de retry com backoff exponencial para falhas transitórias.
+MAX_TENTATIVAS = 3
+BACKOFF_BASE = 2  # segundos: espera = BACKOFF_BASE * 2**(tentativa-1)
+STATUS_RETENTAVEIS = {429, 500, 502, 503, 504}
+
+# Limite de páginas por categoria -- salvaguarda contra loop infinito caso
+# a condição de parada da paginação nunca seja atingida.
+MAX_PAGINAS = 100
+
 # Divide por vírgula apenas quando ela for seguida de um novo rótulo de campo
 # (ex: ", P/VP :"), e não quando faz parte do valor decimal (ex: "10,96 B").
 # Inclui hífen na classe de caracteres do rótulo -- rótulos como "Preço-teto
@@ -87,11 +96,45 @@ def _sanitizar_valor(chave: str, valor: str) -> str:
 
 
 def buscar_pagina(url: str, page: int | None = 1) -> str:
-    """Faz o GET de uma página da rota all2. Levanta exceção em erro HTTP."""
+    """
+    Faz o GET de uma página da rota all2, com retry e backoff exponencial.
+
+    Retenta em falhas de conexão/timeout e em respostas com status transitório
+    (429, 500, 502, 503, 504), respeitando o header ``Retry-After`` quando
+    presente. Erros HTTP não-retentáveis (ex: 404) são levantados na hora.
+    Levanta a última exceção se esgotar as tentativas.
+    """
     params = {"page": page} if page else {}
-    resp = requests.get(url, headers=HEADERS, params=params, timeout=TIMEOUT)
-    resp.raise_for_status()
-    return resp.text
+    ultimo_erro: Exception | None = None
+
+    for tentativa in range(1, MAX_TENTATIVAS + 1):
+        espera = BACKOFF_BASE * (2 ** (tentativa - 1))
+        try:
+            resp = requests.get(url, headers=HEADERS, params=params, timeout=TIMEOUT)
+        except requests.RequestException as e:
+            ultimo_erro = e
+        else:
+            if resp.status_code in STATUS_RETENTAVEIS:
+                ultimo_erro = requests.HTTPError(
+                    f"HTTP {resp.status_code} para {resp.url}", response=resp
+                )
+                retry_after = resp.headers.get("Retry-After")
+                if retry_after and retry_after.isdigit():
+                    espera = max(espera, int(retry_after))
+            else:
+                resp.raise_for_status()  # 4xx não-retentável levanta agora
+                return resp.text
+
+        if tentativa == MAX_TENTATIVAS:
+            break
+
+        print(
+            f"    [retry] tentativa {tentativa}/{MAX_TENTATIVAS} falhou "
+            f"({ultimo_erro}); aguardando {espera}s..."
+        )
+        time.sleep(espera)
+
+    raise ultimo_erro
 
 
 def extrair_ativos(html: str) -> list[dict]:
@@ -160,7 +203,31 @@ def extrair_ativos(html: str) -> list[dict]:
 
 
 def coletar_categoria(categoria: str) -> list[dict]:
-    """Busca e extrai todos os ativos de uma categoria (ex: 'fiis')."""
+    """
+    Busca e extrai todos os ativos de uma categoria (ex: 'fiis'), paginando
+    até o fim.
+
+    A cada página, ignora tickers já vistos em páginas anteriores; quando uma
+    página não traz nenhum ticker inédito (lista vazia ou só duplicatas),
+    entende que chegou ao fim e para. Isso funciona tanto se a rota all2
+    paginar de verdade quanto se devolver a lista inteira já na página 1.
+    """
     url = CATEGORIAS[categoria]
-    html = buscar_pagina(url, page=1)
-    return extrair_ativos(html)
+    todos: list[dict] = []
+    vistos: set[str] = set()
+
+    for page in range(1, MAX_PAGINAS + 1):
+        html = buscar_pagina(url, page=page)
+        ativos = extrair_ativos(html)
+
+        novos = [a for a in ativos if a["ticker"] not in vistos]
+        if not novos:
+            break
+
+        vistos.update(a["ticker"] for a in novos)
+        todos.extend(novos)
+
+        if page < MAX_PAGINAS:
+            time.sleep(DELAY_ENTRE_REQUESTS)
+
+    return todos
