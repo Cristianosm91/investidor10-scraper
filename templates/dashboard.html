@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel Investidor10</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../static/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-title">
+      <h1>Painel Investidor10</h1>
+      <div class="meta">fonte: dados locais &middot; coletado em desconhecido</div>
+    </div>
+    <button id="btn-filtros" class="btn-filtros" type="button">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg></span> Filtros <span class="badge" id="badge-filtros" hidden>0</span>
+    </button>
+  </header>
+
+  <div class="marquee-wrap"><div class="marquee-track" id="marquee"></div></div>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <div class="controls">
+    <input type="text" id="busca" placeholder="Filtrar por ticker, nome ou segmento...">
+    <div class="controls-right">
+      <label class="pagina-tamanho-label">Exibir
+        <select id="tamanho-pagina">
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+          <option value="150">150</option>
+          <option value="200">200</option>
+          <option value="250">250</option>
+          <option value="todos">Todos</option>
+        </select>
+      </label>
+      <div class="count" id="contagem"></div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <aside class="filtros-painel" id="filtros-painel" hidden>
+      <div class="filtros-header">
+        <span>Filtros por indicador</span>
+        <button id="btn-limpar-filtros" type="button">Limpar</button>
+      </div>
+      <div class="filtros-lista" id="filtros-lista"></div>
+    </aside>
+
+    <div class="tabela-coluna">
+      <div class="table-wrap">
+        <table id="tabela">
+          <thead><tr id="cabecalho"></tr></thead>
+          <tbody id="corpo"></tbody>
+        </table>
+        <div class="empty-state" id="vazio" style="display:none;">Nenhum ativo encontrado para esse filtro.</div>
+      </div>
+      <nav class="paginacao" id="paginacao"></nav>
+    </div>
+  </div>
+
+  <script type="application/json" id="dashboard-data">{"dados": {"acoes": [], "fiis": [], "stocks": [], "bdrs": [], "etfs": []}, "metadata": {}, "nomes": {"acoes": "Ações", "fiis": "FIIs", "stocks": "Stocks", "bdrs": "BDRs", "etfs": "ETFs"}, "schema": {"acoes": [], "fiis": [], "stocks": [], "bdrs": [], "etfs": []}}</script>
+  <script src="../static/js/scripts.js"></script>
+</body>
+</html>

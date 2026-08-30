@@ -7,13 +7,18 @@ Uso:
 """
 
 import json
+import logging
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
 
-import requests
+# garante que o módulo irmão seja importado independentemente do diretório atual
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from investidor10_scraper import CATEGORIAS, DELAY_ENTRE_REQUESTS, coletar_categoria
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 PASTA_DADOS = ROOT / "data"
@@ -33,11 +38,11 @@ def main():
     }
 
     for categoria in CATEGORIAS:
-        print(f"Coletando {categoria}...")
+        logger.info("Coletando %s...", categoria)
         try:
             itens = coletar_categoria(categoria)
-        except requests.RequestException as e:
-            print(f"  [ERRO] Falha ao coletar {categoria}: {e}")
+        except Exception as e:
+            logger.error("  [ERRO] Falha ao coletar %s: %s", categoria, e)
             metadata["categorias"][categoria] = {"total": 0, "erro": str(e)}
             time.sleep(DELAY_ENTRE_REQUESTS)
             continue
@@ -45,15 +50,16 @@ def main():
         caminho = PASTA_DADOS / f"{categoria}.json"
         salvar_json(caminho, itens)
 
-        print(f"  {len(itens)} ativos salvos em {caminho}")
+        logger.info("  %d ativos salvos em %s", len(itens), caminho)
         metadata["categorias"][categoria] = {"total": len(itens)}
 
         time.sleep(DELAY_ENTRE_REQUESTS)
 
     salvar_json(PASTA_DADOS / "_metadata.json", metadata)
-    print(f"\nColeta concluída em {metadata['coletado_em']}.")
-    print(f"Metadados salvos em {PASTA_DADOS / '_metadata.json'}")
+    logger.info("\nColeta concluída em %s.", metadata["coletado_em"])
+    logger.info("Metadados salvos em %s", PASTA_DADOS / "_metadata.json")
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     main()

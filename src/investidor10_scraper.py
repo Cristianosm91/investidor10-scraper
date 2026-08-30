@@ -8,9 +8,12 @@ FIIs extraídos corretamente, sem quebras).
 
 import re
 import time
+import logging
 
 import requests
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 HEADERS = {
     "User-Agent": (
@@ -18,6 +21,10 @@ HEADERS = {
         "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     )
 }
+
+# Sessão reutilizada entre requisições (keep-alive + headers centralizados).
+SESSION = requests.Session()
+SESSION.headers.update(HEADERS)
 
 CATEGORIAS = {
     "acoes": "https://investidor10.com.br/acoes/all2/",
@@ -110,7 +117,7 @@ def buscar_pagina(url: str, page: int | None = 1) -> str:
     for tentativa in range(1, MAX_TENTATIVAS + 1):
         espera = BACKOFF_BASE * (2 ** (tentativa - 1))
         try:
-            resp = requests.get(url, headers=HEADERS, params=params, timeout=TIMEOUT)
+            resp = SESSION.get(url, params=params, timeout=TIMEOUT)
         except requests.RequestException as e:
             ultimo_erro = e
         else:
@@ -128,13 +135,13 @@ def buscar_pagina(url: str, page: int | None = 1) -> str:
         if tentativa == MAX_TENTATIVAS:
             break
 
-        print(
-            f"    [retry] tentativa {tentativa}/{MAX_TENTATIVAS} falhou "
-            f"({ultimo_erro}); aguardando {espera}s..."
+        logger.warning(
+            "[retry] tentativa %d/%d falhou (%s); aguardando %ds...",
+            tentativa, MAX_TENTATIVAS, ultimo_erro, espera,
         )
         time.sleep(espera)
 
-    raise ultimo_erro
+    raise ultimo_erro or RuntimeError("buscar_pagina falhou sem exceção registrada")
 
 
 def extrair_ativos(html: str) -> list[dict]:

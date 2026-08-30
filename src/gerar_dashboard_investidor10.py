@@ -4,14 +4,14 @@ em ./data/ (acoes.json, fiis.json, stocks.json, bdrs.json, etfs.json).
 
 Segue a estrutura de pastas:
     projeto/
-      scripts/gerar_dashboard.py   <- este arquivo
+      src/gerar_dashboard_investidor10.py   <- este arquivo
       data/*.json
       templates/dashboard.html     <- gerado
       static/css/style.css         <- gerado (embutido neste script)
       static/js/scripts.js         <- gerado (embutido neste script)
 
 Uso:
-    python gerar_dashboard.py
+    python src/gerar_dashboard_investidor10.py
 """
 
 import json
@@ -122,7 +122,9 @@ def montar_html(dados: dict, metadata: dict) -> str:
         "nomes": NOMES_CATEGORIA,
         "schema": schema,
     }
-    payload_json = json.dumps(payload, ensure_ascii=False)
+    payload_json = json.dumps(payload, ensure_ascii=False).translate(
+        {ord("<"): "\\u003c", ord(">"): "\\u003e", ord("&"): "\\u0026"}
+    )
     coletado_em = metadata.get("coletado_em", "desconhecido")
 
     return f"""<!DOCTYPE html>
@@ -651,6 +653,12 @@ let painelAberto = false;
 let tamanhoPagina = 50; // 50 | 100 | 150 | 200 | 250 | "todos"
 let paginaAtual = 1;
 
+function escaparHtml(valor) {
+  return String(valor).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
 function pareceNumerico(valor) {
   if (valor == null) return false;
   const s = String(valor).trim();
@@ -753,10 +761,10 @@ function formatarCelula(col, valor) {
   // campos que já vêm formatados como string com "%" (ex: Investidor10) -- corrige
   // eventuais "%%" duplicados vindos da coleta, sem mexer no restante do valor
   if (bruto.includes("%")) {
-    return bruto.replace(/%{2,}/g, "%");
+    return escaparHtml(bruto.replace(/%{2,}/g, "%"));
   }
 
-  return bruto;
+  return escaparHtml(bruto);
 }
 
 function formatarDataHora(iso) {
@@ -813,7 +821,7 @@ function renderizarMarquee() {
     const n = paraNumero(item[campoVariacao]);
     const classe = n >= 0 ? "up" : "down";
     const sinal = n >= 0 ? "+" : "";
-    return `<span class="marquee-item"><span class="tk">${item.ticker}</span><span class="${classe}">${sinal}${formatarNumeroBR(n, 1)}%</span></span>`;
+    return `<span class="marquee-item"><span class="tk">${escaparHtml(item.ticker)}</span><span class="${classe}">${sinal}${formatarNumeroBR(n, 1)}%</span></span>`;
   }).join("");
 }
 
