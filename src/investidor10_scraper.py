@@ -9,6 +9,7 @@ FIIs extraídos corretamente, sem quebras).
 import re
 import time
 import logging
+from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -121,6 +122,13 @@ def buscar_pagina(url: str, page: int | None = 1) -> str:
         except requests.RequestException as e:
             ultimo_erro = e
         else:
+            caminho_esperado = urlparse(url).path.rstrip("/")
+            caminho_recebido = urlparse(resp.url).path.rstrip("/")
+            if caminho_recebido != caminho_esperado:
+                raise requests.HTTPError(
+                    f"Redirecionamento inesperado de {url} para {resp.url}",
+                    response=resp,
+                )
             if resp.status_code in STATUS_RETENTAVEIS:
                 ultimo_erro = requests.HTTPError(
                     f"HTTP {resp.status_code} para {resp.url}", response=resp
