@@ -57,7 +57,10 @@ function paraNumero(valor) {
 }
 
 function ehCampoVariacao(campo) {
-  return /varia[cç][aã]o/i.test(campo);
+  // cobre tanto o rótulo antigo em português ("Variação 12M", vindo de
+  // coletas antigas já salvas em disco) quanto a chave atual em inglês
+  // devolvida pela rota vigente do Investidor10 ("variation_12_months").
+  return /varia[cç][aã]o/i.test(campo) || /variation/i.test(campo);
 }
 
 function colunasDaCategoria(categoria) {
