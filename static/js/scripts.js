@@ -12,6 +12,12 @@ let painelAberto = false;
 let tamanhoPagina = 50; // 50 | 100 | 150 | 200 | 250 | "todos"
 let paginaAtual = 1;
 
+function escaparHtml(valor) {
+  return String(valor).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
 function pareceNumerico(valor) {
   if (valor == null) return false;
   const s = String(valor).trim();
@@ -114,10 +120,10 @@ function formatarCelula(col, valor) {
   // campos que já vêm formatados como string com "%" (ex: Investidor10) -- corrige
   // eventuais "%%" duplicados vindos da coleta, sem mexer no restante do valor
   if (bruto.includes("%")) {
-    return bruto.replace(/%{2,}/g, "%");
+    return escaparHtml(bruto.replace(/%{2,}/g, "%"));
   }
 
-  return bruto;
+  return escaparHtml(bruto);
 }
 
 function formatarDataHora(iso) {
@@ -174,7 +180,7 @@ function renderizarMarquee() {
     const n = paraNumero(item[campoVariacao]);
     const classe = n >= 0 ? "up" : "down";
     const sinal = n >= 0 ? "+" : "";
-    return `<span class="marquee-item"><span class="tk">${item.ticker}</span><span class="${classe}">${sinal}${formatarNumeroBR(n, 1)}%</span></span>`;
+    return `<span class="marquee-item"><span class="tk">${escaparHtml(item.ticker)}</span><span class="${classe}">${sinal}${formatarNumeroBR(n, 1)}%</span></span>`;
   }).join("");
 }
 
