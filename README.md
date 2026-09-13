@@ -179,6 +179,23 @@ ordenar por qualquer coluna, ajustar o tamanho da página e filtrar por
 indicadores no painel lateral. Se rodar sem dados em `data/`, o HTML é gerado
 vazio — rode `coletar_dados.py` primeiro.
 
+> **Ajuste de compatibilidade (09/2026):** depois da correção do scraper (ver
+> seção 8), os dados passaram a vir com chaves internas em inglês/snake_case
+> (`variation_12_months`, `net_worth`, `p_vp` etc.) em vez dos antigos rótulos
+> em português (`"Variação 12M"`, `"Patrimônio Líquido"`). Dois pontos do
+> gerador de dashboard dependiam do formato antigo e foram ajustados:
+> - a coloração azul/vermelho das colunas de variação e a faixa de destaques
+>   no topo (`ehCampoVariacao`, em `scripts.js`) reconheciam só `variação`
+>   (PT) — agora também reconhecem `variation` (EN);
+> - o campo de link do ativo mudou de nome (`href_relativo` →
+>   `url_relativa`) e passou a aparecer como coluna visível na tabela por
+>   engano — voltou a ficar oculto (`CAMPOS_OCULTOS_EXPLICITOS`).
+>
+> `LABELS` também ganhou traduções para as chaves mais comuns (`p_vp` →
+> "P/VP", `net_worth` → "Patrimônio Líquido" etc.); chaves novas que o site
+> venha a introduzir e que não estejam nesse dicionário aparecem formatadas
+> automaticamente (`campo_novo` → "Campo Novo"), sem quebrar nada.
+
 ## 8. Observações
 - A rota de listagem (`/{categoria}/?page=N`) é pública, mas não é uma API
   documentada — pode mudar de estrutura ou de comportamento sem aviso; se a

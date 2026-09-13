@@ -30,15 +30,29 @@ NOMES_CATEGORIA = {
     "etfs": "ETFs",
 }
 
-# Os dados do Investidor10 já vêm com rótulos legíveis em português
-# (ex: "Patrimônio Líquido", "Dividend Yield"), então o mapeamento aqui
-# só cobre as chaves internas do próprio scraper.
+# Antes da correção de 09/2026, os dados do Investidor10 vinham com rótulos
+# já legíveis em português (ex: "Patrimônio Líquido", "Dividend Yield"). A
+# rota atual devolve as chaves internas do próprio site, em inglês/snake_case
+# (ex: "net_worth", "p_vp", "variation_12_months") -- por isso o mapeamento
+# abaixo cobre tanto essas chaves quanto as internas do scraper (ticker/nome).
+# Chaves não mapeadas aqui caem no fallback de `formatar_label` (vira
+# "Alguma Coisa" a partir de "alguma_coisa").
 LABELS = {
     "ticker": "Ticker",
     "nome": "Empresa",
+    "net_worth": "Patrimônio Líquido",
+    "enterprise_value": "Valor de Mercado (EV)",
+    "p_l": "P/L",
+    "p_vp": "P/VP",
+    "rate": "Nota Investidor10",
+    "dividend_yield_last_12_months": "Dividend Yield (12M)",
+    "dividend_yield_last_5_years": "DY Médio (5 Anos)",
+    "variation_5_years": "Variação 5 Anos",
+    "variation_30_days": "Variação 30D",
+    "variation_12_months": "Variação 12M",
 }
 
-CAMPOS_OCULTOS_EXPLICITOS = {"href_relativo", "empresa"}
+CAMPOS_OCULTOS_EXPLICITOS = {"href_relativo", "url_relativa", "empresa"}
 PADRAO_ID_INTERNO = re.compile(r"^[a-z]+id$")
 
 PRIORIDADE_COLUNAS = ["ticker", "nome"]
@@ -698,7 +712,10 @@ function paraNumero(valor) {
 }
 
 function ehCampoVariacao(campo) {
-  return /varia[cç][aã]o/i.test(campo);
+  // cobre tanto o rótulo antigo em português ("Variação 12M", vindo de
+  // coletas antigas já salvas em disco) quanto a chave atual em inglês
+  // devolvida pela rota vigente do Investidor10 ("variation_12_months").
+  return /varia[cç][aã]o/i.test(campo) || /variation/i.test(campo);
 }
 
 function colunasDaCategoria(categoria) {
